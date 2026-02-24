@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: vodila-app
+    env: docker
+    region: frankfurt
+    plan: starter
+    buildCommand: ""
+    startCommand: uv run uvicorn vodila.main:app --host 0.0.0.0 --port 8000
+    envVars:
+      - key: PYTHONPATH
+        value: /app
+      - key: DATABASE_PATH
+        value: /app/data/rules.db
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+    disks:
+      - name: vodila-data
+        mountPath: /app/data
+        sizeGB: 1
