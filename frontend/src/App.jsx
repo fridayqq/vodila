@@ -82,13 +82,11 @@ function App() {
     return { 'X-Telegram-User': JSON.stringify(tgUser) };
   };
 
-  // Load data after auth
+  // Load data on mount
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchStats();
-      fetchProgress();
-    }
-  }, [isAuthenticated]);
+    fetchStats();
+    fetchProgress();
+  }, []);
 
   const fetchStats = async () => {
     try {
