@@ -9,11 +9,7 @@ services:
     envVars:
       - key: PYTHONPATH
         value: /app
-      - key: DATABASE_PATH
-        value: /app/data/rules.db
+      - key: RENDER
+        value: "true"
       - key: TELEGRAM_BOT_TOKEN
         sync: false
-    disks:
-      - name: vodila-data
-        mountPath: /app/data
-        sizeGB: 1
