@@ -159,8 +159,9 @@ def verify_telegram_data(init_data: dict) -> bool:
         if v is None:
             continue
         # Convert dict values to compact JSON string
+        # Use ensure_ascii=False to match Telegram's encoding
         if isinstance(v, dict):
-            v = json.dumps(v, separators=(',', ':'), sort_keys=True)
+            v = json.dumps(v, separators=(',', ':'), sort_keys=True, ensure_ascii=False)
         data_pairs.append(f"{k}={v}")
     
     # Join with newline as per Telegram spec
