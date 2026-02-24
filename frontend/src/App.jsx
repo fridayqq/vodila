@@ -166,7 +166,6 @@ function App() {
       'Content-Type': 'application/json',
       ...getAuthHeaders(),
     };
-    console.log('Updating progress:', { ruleId, status, headers });
     
     try {
       const res = await fetch(`${API_BASE}/progress`, {
@@ -175,10 +174,22 @@ function App() {
         body: JSON.stringify({ rule_id: ruleId, status }),
       });
       
-      console.log('Progress update response:', res.status, await res.text());
-
-      if (!isExamMode) {
-        fetchProgress();
+      if (res.ok && !isExamMode) {
+        // Update local state immediately for responsive UI
+        setProgress(prev => {
+          const newKnown = status === 'known' 
+            ? [...new Set([...prev.known, ruleId])]
+            : prev.known.filter(id => id !== ruleId);
+          const newUnknown = status === 'unknown'
+            ? [...new Set([...prev.unknown, ruleId])]
+            : prev.unknown.filter(id => id !== ruleId);
+          return {
+            known: newKnown,
+            unknown: newUnknown,
+            total_known: newKnown.length,
+            total_unknown: newUnknown.length,
+          };
+        });
       }
     } catch (e) {
       console.error('Failed to update progress:', e);
