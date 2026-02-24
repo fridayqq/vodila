@@ -176,7 +176,7 @@ function App() {
       });
       
       if (res.ok && !isExamMode) {
-        // Update local state immediately for responsive UI
+        // Update local progress state immediately
         setProgress(prev => {
           const newKnown = status === 'known' 
             ? [...new Set([...prev.known, ruleId])]
@@ -191,6 +191,22 @@ function App() {
             total_unknown: newUnknown.length,
           };
         });
+        
+        // Also update global stats
+        setStats(prev => {
+          if (!prev) return prev;
+          const isKnownChange = status === 'known';
+          // Check if this card was already counted
+          const wasUnknown = progress.unknown.includes(ruleId);
+          const wasKnown = progress.known.includes(ruleId);
+          
+          return {
+            ...prev,
+            known: prev.known + (isKnownChange && !wasKnown ? 1 : 0),
+            unknown: prev.unknown + (!isKnownChange && !wasUnknown && !wasKnown ? 1 : 0),
+            not_started: prev.not_started - (!wasKnown && !wasUnknown ? 1 : 0),
+          };
+        });
       }
     } catch (e) {
       console.error('Failed to update progress:', e);
@@ -199,10 +215,10 @@ function App() {
 
   const handleSwipe = useCallback((direction) => {
     if (currentIndex >= cards.length) return;
-    
+
     setSwipeDirection(direction);
     const currentCard = cards[currentIndex];
-    
+
     setTimeout(() => {
       if (isExamMode) {
         setExamResults(prev => {
@@ -216,8 +232,9 @@ function App() {
       } else {
         updateCardProgress(currentCard.id, direction === 'right' ? 'known' : 'unknown');
       }
-      
+
       setSwipeDirection(null);
+      setDragX(0); // Reset drag for next card
       setCurrentIndex(prev => prev + 1);
     }, 300);
   }, [currentIndex, cards, isExamMode]);
