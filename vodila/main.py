@@ -399,6 +399,12 @@ def get_bot_info():
         "configured": bool(token),
         "webhook_url": f"https://your-domain.com/api/telegram/webhook",
         "setup_command": f"Set webhook via: https://api.telegram.org/bot{token[:15]}.../setWebhook?url=https://your-domain.com/api/telegram/webhook" if token else "No token configured",
+        "mini_app_url": f"https://vodila-app-xxxx.onrender.com",
+        "commands": {
+            "/start": "Запустить Mini App",
+            "/study": "Начать обучение",
+            "/stats": "Показать статистику",
+        },
     }
 
 
