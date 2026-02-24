@@ -16,52 +16,32 @@ function App() {
   const [swipeDirection, setSwipeDirection] = useState(null);
   const [isExamMode, setIsExamMode] = useState(false);
   const [examResults, setExamResults] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState({ id: 'anonymous', username: 'Guest' });
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   const touchStartX = useRef(0);
   const touchCurrentX = useRef(0);
 
-  // Authenticate with Telegram
+  // Start in anonymous mode immediately
   useEffect(() => {
-    // Always allow access - Telegram or browser
-    const tgUser = TelegramWebApp?.initDataUnsafe?.user;
+    // Always start as anonymous user
+    fetchStats();
+    fetchProgress();
     
-    if (TelegramWebApp) {
-      TelegramWebApp.ready();
-      TelegramWebApp.expand();
-
-      const initData = TelegramWebApp.initData;
-      if (initData && tgUser) {
-        authenticate(initData, tgUser);
-      } else {
-        // In Telegram but no auth data, or not in Telegram
-        setIsAuthenticated(true);
-        setUser({ id: 'anonymous', username: 'Guest' });
-      }
-    } else {
-      // Not in Telegram - browser mode
-      setIsAuthenticated(true);
-      setUser({ id: 'anonymous', username: 'Guest' });
+    // Check if we're in Telegram and suggest login
+    if (TelegramWebApp?.initDataUnsafe?.user) {
+      setShowLoginPrompt(true);
     }
   }, []);
 
   const authenticate = async (initData, tgUser) => {
-    console.log('Starting auth...', { initData: initData ? 'present' : 'missing', tgUser });
-    
     try {
       const params = new URLSearchParams(initData);
       const userParam = params.get('user');
       const hash = params.get('hash');
 
-      console.log('Auth params:', { userParam: userParam ? 'present' : 'missing', hash: hash ? 'present' : 'missing' });
-
       if (!userParam || !hash) {
-        // No auth data - use anonymous mode
-        console.warn('No Telegram auth data, using anonymous mode');
-        setIsAuthenticated(true);
-        setUser({ id: 'anonymous', username: 'Guest' });
-        return;
+        return false;
       }
 
       const res = await fetch(`${API_BASE}/auth/telegram`, {
@@ -70,26 +50,30 @@ function App() {
         body: JSON.stringify({ user: tgUser, hash }),
       });
 
-      console.log('Auth response status:', res.status);
-
       if (res.ok) {
         const data = await res.json();
-        console.log('Auth success:', data);
         setUser(data);
-        setIsAuthenticated(true);
-      } else {
-        // Auth failed - use anonymous mode
-        const errorText = await res.text();
-        console.warn('Telegram auth failed, using anonymous mode:', errorText);
-        setIsAuthenticated(true);
-        setUser({ id: 'anonymous', username: 'Guest' });
+        setShowLoginPrompt(false);
+        fetchProgress(); // Reload progress for authenticated user
+        return true;
       }
+      return false;
     } catch (e) {
       console.error('Auth error:', e);
-      // Error - use anonymous mode
-      setIsAuthenticated(true);
-      setUser({ id: 'anonymous', username: 'Guest' });
+      return false;
     }
+  };
+
+  const handleLogin = () => {
+    if (TelegramWebApp?.initData && TelegramWebApp?.initDataUnsafe?.user) {
+      authenticate(TelegramWebApp.initData, TelegramWebApp.initDataUnsafe.user);
+    }
+  };
+
+  const handleLogout = () => {
+    setUser({ id: 'anonymous', username: 'Guest' });
+    setShowLoginPrompt(false);
+    fetchProgress();
   };
 
   const getAuthHeaders = () => {
@@ -249,24 +233,16 @@ function App() {
   const currentCard = cards[currentIndex];
   const isComplete = currentIndex >= cards.length;
 
-  if (!isAuthenticated) {
-    return (
-      <div className="app">
-        <div className="loading-screen">
-          <div className="spinner"></div>
-          <p>Загрузка...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="app">
       {currentView === 'home' && (
-        <HomeView 
-          stats={stats} 
+        <HomeView
+          stats={stats}
           user={user}
-          onStartStudy={startStudy} 
+          showLoginPrompt={showLoginPrompt}
+          onLogin={handleLogin}
+          onLogout={handleLogout}
+          onStartStudy={startStudy}
           onViewStats={() => setCurrentView('stats')}
         />
       )}
@@ -301,7 +277,7 @@ function App() {
   );
 }
 
-function HomeView({ stats, user, onStartStudy, onViewStats }) {
+function HomeView({ stats, user, showLoginPrompt, onLogin, onLogout, onStartStudy, onViewStats }) {
   const modes = [
     { id: 'sequential', name: '📋 Последовательно', desc: 'Все карточки по порядку', icon: '📖' },
     { id: 'random', name: '🔀 Случайно', desc: 'Все карточки в случайном порядке', icon: '🎲' },
@@ -310,15 +286,39 @@ function HomeView({ stats, user, onStartStudy, onViewStats }) {
     { id: 'exam', name: '📝 Экзамен', desc: '20 случайных вопросов', icon: '🎓' },
   ];
 
+  const isAnonymous = user?.id === 'anonymous';
+
   return (
     <div className="home-view">
       <header className="header">
         <h1>🚦 ПДД Испании</h1>
         <p className="subtitle">Изучайте правила дорожного движения</p>
-        {user && user.username && user.username !== 'Guest' && (
-          <p className="user-greeting">👤 {user.username}</p>
-        )}
+        
+        <div className="user-section">
+          {isAnonymous ? (
+            <p className="user-greeting anonymous">👤 Гость</p>
+          ) : (
+            <p className="user-greeting">👤 {user?.username}</p>
+          )}
+          
+          {isAnonymous ? (
+            <button className="login-btn" onClick={onLogin}>
+              🔐 Войти через Telegram
+            </button>
+          ) : (
+            <button className="logout-btn" onClick={onLogout}>
+              🚪 Выйти
+            </button>
+          )}
+        </div>
       </header>
+
+      {showLoginPrompt && isAnonymous && (
+        <div className="login-prompt">
+          <p>💡 Войдите чтобы сохранить прогресс</p>
+          <button onClick={onLogin}>Войти через Telegram</button>
+        </div>
+      )}
 
       {stats && (
         <div className="stats-summary">

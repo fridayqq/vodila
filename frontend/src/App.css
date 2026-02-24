@@ -36,6 +36,80 @@
   margin-top: 8px;
 }
 
+.user-greeting.anonymous {
+  color: #888;
+}
+
+.user-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.login-btn,
+.logout-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.login-btn {
+  background: linear-gradient(90deg, #3498db, #2980b9);
+  color: #fff;
+}
+
+.login-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.logout-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: #888;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Login prompt */
+.login-prompt {
+  background: linear-gradient(135deg, rgba(52, 152, 219, 0.2), rgba(41, 128, 185, 0.2));
+  border: 1px solid rgba(52, 152, 219, 0.4);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.login-prompt p {
+  margin-bottom: 12px;
+  color: #ccc;
+  font-size: 0.95rem;
+}
+
+.login-prompt button {
+  padding: 10px 20px;
+  background: linear-gradient(90deg, #3498db, #2980b9);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.login-prompt button:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
 .stats-summary {
   display: flex;
   justify-content: space-around;
