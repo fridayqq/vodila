@@ -53,6 +53,7 @@ function App() {
       const hash = params.get('hash');
 
       if (!userParam || !hash) {
+        // No auth data - use anonymous mode
         setIsAuthenticated(true);
         setUser({ id: 'anonymous', username: 'Guest' });
         return;
@@ -69,11 +70,14 @@ function App() {
         setUser(data);
         setIsAuthenticated(true);
       } else {
+        // Auth failed - use anonymous mode
+        console.warn('Telegram auth failed, using anonymous mode');
         setIsAuthenticated(true);
         setUser({ id: 'anonymous', username: 'Guest' });
       }
     } catch (e) {
       console.error('Auth error:', e);
+      // Error - use anonymous mode
       setIsAuthenticated(true);
       setUser({ id: 'anonymous', username: 'Guest' });
     }

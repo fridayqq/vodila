@@ -256,13 +256,14 @@ def update_progress(
     x_telegram_user: str | None = Header(None, alias="X-Telegram-User"),
 ):
     """Update user progress for a card."""
+    # Allow anonymous usage - just don't save progress
     if not x_telegram_user:
-        raise HTTPException(status_code=401, detail="User authentication required")
-    
+        return {"success": True, "message": "Anonymous mode - progress not saved"}
+
     with Session(engine) as session:
         telegram_user = eval(x_telegram_user)  # Parse JSON from header
         user = get_or_create_user(session, telegram_user)
-        
+
         # Check if progress exists for this user
         stmt = select(UserProgress).where(
             UserProgress.user_id == user.id,
