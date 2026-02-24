@@ -242,6 +242,8 @@ function App() {
           onLogout={handleLogout}
           onStartStudy={startStudy}
           onViewStats={() => setCurrentView('stats')}
+          progress={progress}
+          onResetProgress={resetProgress}
         />
       )}
       
@@ -275,7 +277,7 @@ function App() {
   );
 }
 
-function HomeView({ stats, user, showLoginPrompt, onLogin, onLogout, onStartStudy, onViewStats }) {
+function HomeView({ stats, user, showLoginPrompt, onLogin, onLogout, onStartStudy, onViewStats, progress, onResetProgress }) {
   const modes = [
     { id: 'sequential', name: '📋 Последовательно', desc: 'Все карточки по порядку', icon: '📖' },
     { id: 'random', name: '🔀 Случайно', desc: 'Все карточки в случайном порядке', icon: '🎲' },
@@ -353,8 +355,8 @@ function HomeView({ stats, user, showLoginPrompt, onLogin, onLogout, onStartStud
         📊 Подробная статистика
       </button>
       
-      {(progress.total_known > 0 || progress.total_unknown > 0) && (
-        <button className="reset-btn" onClick={resetProgress}>
+      {(progress?.total_known > 0 || progress?.total_unknown > 0) && (
+        <button className="reset-btn" onClick={onResetProgress}>
           🗑️ Сбросить прогресс
         </button>
       )}
