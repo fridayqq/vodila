@@ -61,18 +61,19 @@ class UserProgress(Base):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Create tables and initialize database if empty
-    # Ensure data directory exists
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    Base.metadata.create_all(engine)
+    # Ensure data directory exists (only for SQLite)
+    if not DATABASE_URL:
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     
+    Base.metadata.create_all(engine)
+
     with Session(engine) as session:
         count = session.query(Rule).count()
         if count == 0:
             print("Initializing database from source_data...")
             from vodila.parser import parse_all_files
             source_dir = Path(__file__).parent.parent / "source_data"
-            db_path = DB_PATH
-            parse_all_files(source_dir, db_path)
+            parse_all_files(source_dir, engine)
             print("Database initialized!")
     yield
     # Shutdown

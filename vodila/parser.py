@@ -1,10 +1,21 @@
 """Parser for RTF files with Spanish-Russian traffic rules."""
 
 import re
-import sqlite3
 from pathlib import Path
 
 from striprtf.striprtf import rtf_to_text
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session, declarative_base, Mapped, mapped_column
+
+Base = declarative_base()
+
+
+class Rule(Base):
+    __tablename__ = "rules"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    spanish: Mapped[str]
+    russian: Mapped[str]
 
 
 def parse_rtf_file(file_path: Path) -> list[dict]:
@@ -32,55 +43,33 @@ def parse_rtf_file(file_path: Path) -> list[dict]:
     return entries
 
 
-def create_database(db_path: Path) -> sqlite3.Connection:
-    """Create SQLite database with the rules table."""
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS rules (
-            id INTEGER PRIMARY KEY,
-            spanish TEXT NOT NULL,
-            russian TEXT NOT NULL
-        )
-    """
-    )
-    conn.commit()
-    return conn
-
-
-def parse_all_files(source_dir: Path, db_path: Path) -> None:
+def parse_all_files(source_dir: Path, engine) -> None:
     """Parse all RTF files and save to database."""
-    conn = create_database(db_path)
-    cursor = conn.cursor()
+    Base.metadata.create_all(engine)
+    
+    with Session(engine) as session:
+        rtf_files = sorted(source_dir.glob("*.rtf"))
 
-    rtf_files = sorted(source_dir.glob("*.rtf"))
+        for file_path in rtf_files:
+            print(f"Parsing {file_path.name}...")
+            entries = parse_rtf_file(file_path)
 
-    for file_path in rtf_files:
-        print(f"Parsing {file_path.name}...")
-        entries = parse_rtf_file(file_path)
+            for entry in entries:
+                # Check if rule exists
+                stmt = select(Rule).where(Rule.id == entry["id"])
+                existing = session.execute(stmt).scalar_one_or_none()
 
-        for entry in entries:
-            cursor.execute(
-                "INSERT OR REPLACE INTO rules (id, spanish, russian) VALUES (?, ?, ?)",
-                (entry["id"], entry["spanish"], entry["russian"]),
-            )
+                if existing:
+                    existing.spanish = entry["spanish"]
+                    existing.russian = entry["russian"]
+                else:
+                    new_rule = Rule(**entry)
+                    session.add(new_rule)
 
-        print(f"  Added {len(entries)} entries")
+                print(f"  Added {len(entries)} entries")
 
-    conn.commit()
+        session.commit()
 
-    cursor.execute("SELECT COUNT(*) FROM rules")
-    total = cursor.fetchone()[0]
-    print(f"\nTotal entries in database: {total}")
-
-    conn.close()
-
-
-if __name__ == "__main__":
-    project_root = Path(__file__).parent.parent
-    source_dir = project_root / "source_data"
-    db_path = project_root / "vodila" / "rules.db"
-
-    parse_all_files(source_dir, db_path)
+        # Count total
+        total = session.query(Rule).count()
+        print(f"\nTotal entries in database: {total}")
