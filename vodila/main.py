@@ -47,12 +47,13 @@ class UserProgress(Base):
     updated_at: Mapped[str]
 
 
-Base.metadata.create_all(engine)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Initialize database if empty
+    # Startup: Create tables and initialize database if empty
+    # Ensure data directory exists
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    Base.metadata.create_all(engine)
+    
     with Session(engine) as session:
         count = session.query(Rule).count()
         if count == 0:
