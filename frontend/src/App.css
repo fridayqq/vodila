@@ -264,6 +264,7 @@
   justify-content: center;
   position: relative;
   min-height: 400px;
+  overflow: visible;
 }
 
 .flashcard {
@@ -281,15 +282,21 @@
   transition: transform 0.3s ease, opacity 0.3s ease;
   user-select: none;
   touch-action: pan-y;
+  cursor: grab;
+  will-change: transform;
+}
+
+.flashcard:active {
+  cursor: grabbing;
 }
 
 .flashcard.swipe-left {
-  transform: translateX(-150%) rotate(-20deg);
+  transform: translateX(-150%) rotate(-20deg) !important;
   opacity: 0;
 }
 
 .flashcard.swipe-right {
-  transform: translateX(150%) rotate(20deg);
+  transform: translateX(150%) rotate(20deg) !important;
   opacity: 0;
 }
 

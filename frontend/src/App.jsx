@@ -18,6 +18,7 @@ function App() {
   const [examResults, setExamResults] = useState(null);
   const [user, setUser] = useState({ id: 'anonymous', username: 'Guest' });
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [dragX, setDragX] = useState(0); // For card drag animation
 
   const touchStartX = useRef(0);
   const touchCurrentX = useRef(0);
@@ -223,22 +224,28 @@ function App() {
 
   const handleTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX;
+    setDragX(0);
   };
 
   const handleTouchMove = (e) => {
     touchCurrentX.current = e.touches[0].clientX;
+    const diff = touchCurrentX.current - touchStartX.current;
+    setDragX(diff);
   };
 
   const handleTouchEnd = () => {
     const diff = touchCurrentX.current - touchStartX.current;
     const threshold = 100;
-    
+
     if (diff > threshold) {
       handleSwipe('right');
     } else if (diff < -threshold) {
       handleSwipe('left');
+    } else {
+      // Return to center if not swiped far enough
+      setDragX(0);
     }
-    
+
     touchStartX.current = 0;
     touchCurrentX.current = 0;
   };
@@ -280,6 +287,7 @@ function App() {
           currentIndex={currentIndex}
           totalCards={cards.length}
           swipeDirection={swipeDirection}
+          dragX={dragX}
           isComplete={isComplete}
           examResults={examResults}
           onTouchStart={handleTouchStart}
@@ -390,9 +398,9 @@ function HomeView({ stats, user, showLoginPrompt, onLogin, onLogout, onStartStud
   );
 }
 
-function StudyView({ 
-  mode, card, currentIndex, totalCards, swipeDirection, 
-  isComplete, examResults, onTouchStart, onTouchMove, onTouchEnd, onSwipe, onBack, onRestart 
+function StudyView({
+  mode, card, currentIndex, totalCards, swipeDirection, dragX,
+  isComplete, examResults, onTouchStart, onTouchMove, onTouchEnd, onSwipe, onBack, onRestart
 }) {
   if (isComplete) {
     return (
@@ -443,18 +451,24 @@ function StudyView({
         <span className="card-counter">{currentIndex + 1} / {totalCards}</span>
       </header>
 
-      <div 
+      <div
         className="card-container"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
       >
-        <div className={`flashcard swipe-${swipeDirection || ''}`}>
+        <div
+          className={`flashcard swipe-${swipeDirection || ''}`}
+          style={{
+            transform: dragX ? `translateX(${dragX}px) rotate(${dragX * 0.1}deg)` : undefined,
+            transition: dragX ? 'none' : 'transform 0.3s ease',
+          }}
+        >
           <div className="card-content">
             <div className="card-label">Правило #{card.id}</div>
             <p className="card-text">{card.russian}</p>
           </div>
-          
+
           <div className="card-hint">
             <span className="hint-left">← Не знаю</span>
             <span className="hint-right">Знаю →</span>
