@@ -8,11 +8,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from sqlalchemy import create_engine, select, func
+from sqlalchemy import create_engine, select, func, inspect, text
 from sqlalchemy.orm import Session, declarative_base, Mapped, mapped_column
 
 # Database setup
@@ -29,6 +29,15 @@ else:
     # Local development with SQLite
     DB_PATH = Path(os.getenv("DATABASE_PATH", Path(__file__).parent / "rules.db"))
     engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
+
+if os.getenv("AUDIO_PATH"):
+    AUDIO_DIR = Path(os.getenv("AUDIO_PATH"))
+elif os.getenv("RENDER"):
+    AUDIO_DIR = Path("/tmp/audio")
+else:
+    AUDIO_DIR = Path(__file__).parent / "audio"
+
+AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 Base = declarative_base()
 
 
@@ -67,6 +76,7 @@ async def lifespan(app: FastAPI):
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     
     Base.metadata.create_all(engine)
+    run_db_migrations()
 
     with Session(engine) as session:
         count = session.query(Rule).count()
@@ -114,6 +124,14 @@ class StudyMode(BaseModel):
     id: str
     name: str
     description: str
+
+
+class AudioCard(BaseModel):
+    id: int
+    spanish: str
+    russian: str
+    has_audio: bool
+    audio_url: str | None
 
 
 class TelegramInitData(BaseModel):
@@ -176,6 +194,40 @@ def get_or_create_user(session: Session, telegram_user: dict) -> User:
         session.refresh(user)
     
     return user
+
+
+def get_audio_filename(rule_id: int) -> str:
+    return f"rule_{rule_id:04d}.wav"
+
+
+def run_db_migrations() -> None:
+    """Apply lightweight schema migrations for old SQLite databases."""
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+
+    if "user_progress" not in tables:
+        return
+
+    columns = {col["name"] for col in inspector.get_columns("user_progress")}
+    if "user_id" not in columns:
+        with engine.begin() as connection:
+            connection.execute(
+                text("ALTER TABLE user_progress ADD COLUMN user_id INTEGER DEFAULT 0")
+            )
+        print("Migration applied: added user_progress.user_id")
+
+
+def parse_telegram_user_header(x_telegram_user: str) -> dict:
+    """Parse and validate Telegram user header."""
+    try:
+        payload = json.loads(x_telegram_user)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Invalid X-Telegram-User JSON") from exc
+
+    if not isinstance(payload, dict) or "id" not in payload:
+        raise HTTPException(status_code=400, detail="Invalid Telegram user payload")
+
+    return payload
 
 
 # API Endpoints
@@ -261,7 +313,7 @@ def update_progress(
         return {"success": True, "message": "Anonymous mode - progress not saved"}
 
     with Session(engine) as session:
-        telegram_user = eval(x_telegram_user)  # Parse JSON from header
+        telegram_user = parse_telegram_user_header(x_telegram_user)
         user = get_or_create_user(session, telegram_user)
 
         # Check if progress exists for this user
@@ -295,7 +347,7 @@ def get_progress(
         return {"known": [], "unknown": [], "total_known": 0, "total_unknown": 0}
     
     with Session(engine) as session:
-        telegram_user = eval(x_telegram_user)  # Parse JSON from header
+        telegram_user = parse_telegram_user_header(x_telegram_user)
         user = get_or_create_user(session, telegram_user)
         
         stmt = select(UserProgress).where(UserProgress.user_id == user.id)
@@ -331,6 +383,32 @@ def get_stats():
         }
 
 
+@app.get("/api/audio/cards")
+def get_audio_cards(request: Request) -> list[AudioCard]:
+    """Get all cards with audio metadata."""
+    with Session(engine) as session:
+        rules = session.execute(select(Rule).order_by(Rule.id)).scalars().all()
+        cards: list[AudioCard] = []
+
+        for rule in rules:
+            filename = get_audio_filename(rule.id)
+            audio_path = AUDIO_DIR / filename
+            has_audio = audio_path.exists()
+            audio_url = str(request.url_for("audio-files", path=filename)) if has_audio else None
+
+            cards.append(
+                AudioCard(
+                    id=rule.id,
+                    spanish=rule.spanish,
+                    russian=rule.russian,
+                    has_audio=has_audio,
+                    audio_url=audio_url,
+                )
+            )
+
+        return cards
+
+
 @app.delete("/api/progress/reset")
 def reset_progress(
     x_telegram_user: str | None = Header(None, alias="X-Telegram-User"),
@@ -340,7 +418,7 @@ def reset_progress(
         raise HTTPException(status_code=401, detail="User authentication required")
     
     with Session(engine) as session:
-        telegram_user = eval(x_telegram_user)
+        telegram_user = parse_telegram_user_header(x_telegram_user)
         user = get_or_create_user(session, telegram_user)
         
         # Delete all progress for this user
@@ -409,6 +487,8 @@ def get_bot_info():
 
 
 # Mount static files for frontend (must be last)
+app.mount("/audio", StaticFiles(directory=AUDIO_DIR), name="audio-files")
+
 static_path = Path(__file__).parent / "static"
 if static_path.exists():
     app.mount("/", StaticFiles(directory=static_path, html=True), name="static")

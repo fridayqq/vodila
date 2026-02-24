@@ -19,6 +19,9 @@ function App() {
   const [user, setUser] = useState({ id: 'anonymous', username: 'Guest' });
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [dragX, setDragX] = useState(0); // For card drag animation
+  const [audioCards, setAudioCards] = useState([]);
+  const [isAudioLoading, setIsAudioLoading] = useState(false);
+  const [audioError, setAudioError] = useState('');
 
   const touchStartX = useRef(0);
   const touchCurrentX = useRef(0);
@@ -121,6 +124,25 @@ function App() {
     }
   };
 
+  const fetchAudioCards = async () => {
+    setIsAudioLoading(true);
+    setAudioError('');
+
+    try {
+      const res = await fetch(`${API_BASE}/audio/cards`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setAudioCards(data);
+    } catch (e) {
+      console.error('Failed to fetch audio cards:', e);
+      setAudioError('Не удалось загрузить аудио карточки');
+    } finally {
+      setIsAudioLoading(false);
+    }
+  };
+
   const resetProgress = async () => {
     if (!confirm('Вы уверены, что хотите сбросить весь прогресс?')) return;
     
@@ -160,6 +182,11 @@ function App() {
     } catch (e) {
       console.error('Failed to start study:', e);
     }
+  };
+
+  const openAudioMode = () => {
+    setCurrentView('audio');
+    fetchAudioCards();
   };
 
   const updateCardProgress = async (ruleId, status) => {
@@ -291,6 +318,7 @@ function App() {
           onLogin={handleLogin}
           onLogout={handleLogout}
           onStartStudy={startStudy}
+          onOpenAudio={openAudioMode}
           onViewStats={() => setCurrentView('stats')}
           progress={progress}
           onResetProgress={resetProgress}
@@ -324,11 +352,32 @@ function App() {
           onBack={() => setCurrentView('home')}
         />
       )}
+
+      {currentView === 'audio' && (
+        <AudioView
+          cards={audioCards}
+          isLoading={isAudioLoading}
+          error={audioError}
+          onBack={() => setCurrentView('home')}
+          onReload={fetchAudioCards}
+        />
+      )}
     </div>
   );
 }
 
-function HomeView({ stats, user, showLoginPrompt, onLogin, onLogout, onStartStudy, onViewStats, progress, onResetProgress }) {
+function HomeView({
+  stats,
+  user,
+  showLoginPrompt,
+  onLogin,
+  onLogout,
+  onStartStudy,
+  onOpenAudio,
+  onViewStats,
+  progress,
+  onResetProgress,
+}) {
   const modes = [
     { id: 'sequential', name: '📋 Последовательно', desc: 'Все карточки по порядку', icon: '📖' },
     { id: 'random', name: '🔀 Случайно', desc: 'Все карточки в случайном порядке', icon: '🎲' },
@@ -404,6 +453,10 @@ function HomeView({ stats, user, showLoginPrompt, onLogin, onLogout, onStartStud
 
       <button className="stats-btn" onClick={onViewStats}>
         📊 Подробная статистика
+      </button>
+
+      <button className="audio-btn" onClick={onOpenAudio}>
+        🎧 Аудио карточки
       </button>
       
       {(progress?.total_known > 0 || progress?.total_unknown > 0) && (
@@ -517,6 +570,145 @@ function StudyView({
       <p className="keyboard-hint">
         Используйте ← → или свайп для навигации
       </p>
+    </div>
+  );
+}
+
+function AudioView({ cards, isLoading, error, onBack, onReload }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentSource, setCurrentSource] = useState('');
+  const [isPlayingAll, setIsPlayingAll] = useState(false);
+  const audioRef = useRef(null);
+
+  const playableCards = cards.filter(card => card.has_audio && card.audio_url);
+  const missingCount = cards.length - playableCards.length;
+  const activeCardId = playableCards[currentIndex]?.id;
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    return () => {
+      if (audio) {
+        audio.pause();
+      }
+    };
+  }, []);
+
+  const playCard = useCallback((index, continueSequence = false) => {
+    if (index < 0 || index >= playableCards.length) return;
+
+    const card = playableCards[index];
+    setCurrentIndex(index);
+    setCurrentSource(card.audio_url);
+    setIsPlayingAll(continueSequence);
+  }, [playableCards]);
+
+  const handlePlayAll = () => {
+    if (!playableCards.length) return;
+    const hasCurrentSelection = Boolean(currentSource) && currentIndex >= 0 && currentIndex < playableCards.length;
+    const startIndex = hasCurrentSelection ? currentIndex : 0;
+    playCard(startIndex, true);
+  };
+
+  const handlePause = () => {
+    setIsPlayingAll(false);
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+  };
+
+  const handleTrackEnd = () => {
+    if (!isPlayingAll) return;
+
+    const nextIndex = currentIndex + 1;
+    if (nextIndex >= playableCards.length) {
+      setIsPlayingAll(false);
+      return;
+    }
+
+    playCard(nextIndex, true);
+  };
+
+  return (
+    <div className="audio-view">
+      <header className="stats-header">
+        <button className="back-btn" onClick={onBack}>← Назад</button>
+        <h2>🎧 Аудио карточки</h2>
+        <span></span>
+      </header>
+
+      <div className="audio-controls">
+        <div className="audio-meta">
+          <p>Всего карточек: <strong>{cards.length}</strong></p>
+          <p>С аудио: <strong>{playableCards.length}</strong></p>
+          {missingCount > 0 && (
+            <p className="audio-warning">Без аудио: {missingCount}</p>
+          )}
+        </div>
+
+        <div className="audio-actions">
+          <button className="btn-primary" onClick={handlePlayAll} disabled={!playableCards.length}>
+            ▶ Слушать все подряд
+          </button>
+          <button className="btn-secondary" onClick={handlePause}>
+            ⏸ Пауза
+          </button>
+          <button className="btn-secondary" onClick={onReload}>
+            🔄 Обновить список
+          </button>
+        </div>
+      </div>
+
+      {isLoading && (
+        <div className="audio-empty">
+          <p>Загрузка аудио карточек...</p>
+        </div>
+      )}
+
+      {!isLoading && error && (
+        <div className="audio-empty">
+          <p>{error}</p>
+          <button className="btn-secondary" onClick={onReload}>Повторить</button>
+        </div>
+      )}
+
+      {!isLoading && !error && !playableCards.length && (
+        <div className="audio-empty">
+          <p>Аудио пока нет. Сначала запустите скрипт генерации озвучки.</p>
+        </div>
+      )}
+
+      {!isLoading && !error && playableCards.length > 0 && (
+        <>
+          <audio
+            className="audio-player"
+            ref={audioRef}
+            src={currentSource}
+            controls
+            autoPlay
+            onEnded={handleTrackEnd}
+          />
+
+          <div className="audio-list">
+            {playableCards.map((card, index) => (
+              <div
+                key={card.id}
+                className={`audio-card-item ${activeCardId === card.id ? 'active' : ''}`}
+              >
+                <div className="audio-card-info">
+                  <div className="audio-card-title">Правило #{card.id}</div>
+                  <p>{card.russian}</p>
+                </div>
+                <button
+                  className="audio-play-btn"
+                  onClick={() => playCard(index, false)}
+                >
+                  {activeCardId === card.id ? '🔊 Сейчас' : '▶ Слушать'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

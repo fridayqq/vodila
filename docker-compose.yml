@@ -7,11 +7,13 @@ services:
       - "8000:8000"
     volumes:
       - app_data:/app/data
+      - ./vodila/audio:/app/vodila/audio
     env_file:
       - .env
     environment:
       - PYTHONPATH=/app
       - DATABASE_PATH=/app/data/rules.db
+      - AUDIO_PATH=/app/vodila/audio
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/stats"]

@@ -11,6 +11,8 @@ services:
         value: /app
       - key: RENDER
         value: "true"
+      - key: AUDIO_PATH
+        value: /app/vodila/audio
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: DATABASE_URL

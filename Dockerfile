@@ -26,6 +26,7 @@ RUN uv sync --frozen --no-dev
 
 # Copy backend source code
 COPY vodila/*.py ./vodila/
+COPY vodila/audio/ ./vodila/audio/
 
 # Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist/ ./vodila/static/
