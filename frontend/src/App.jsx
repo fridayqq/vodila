@@ -3,10 +3,10 @@ import './App.css';
 
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:8000/api';
 
-// Telegram WebApp integration
-const TelegramWebApp = window.Telegram?.WebApp;
-
 function App() {
+  // Get Telegram WebApp reference (may be undefined in browser)
+  const TelegramWebApp = typeof window !== 'undefined' ? window.Telegram?.WebApp : undefined;
+  
   const [currentView, setCurrentView] = useState('home');
   const [selectedMode, setSelectedMode] = useState(null);
   const [cards, setCards] = useState([]);
