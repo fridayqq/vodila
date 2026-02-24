@@ -577,7 +577,9 @@ function StudyView({
 function AudioView({ cards, isLoading, error, onBack, onReload }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [currentSource, setCurrentSource] = useState('');
-  const [isPlayingAll, setIsPlayingAll] = useState(false);
+  const [playMode, setPlayMode] = useState('single'); // single | sequential | shuffle
+  const [shuffleQueue, setShuffleQueue] = useState([]);
+  const [shufflePosition, setShufflePosition] = useState(-1);
   const audioRef = useRef(null);
 
   const playableCards = cards.filter(card => card.has_audio && card.audio_url);
@@ -593,39 +595,79 @@ function AudioView({ cards, isLoading, error, onBack, onReload }) {
     };
   }, []);
 
-  const playCard = useCallback((index, continueSequence = false) => {
+  const buildShuffleQueue = useCallback((length, startIndex = null) => {
+    const queue = Array.from({ length }, (_, idx) => idx);
+    for (let i = queue.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [queue[i], queue[j]] = [queue[j], queue[i]];
+    }
+
+    if (startIndex === null || startIndex < 0 || startIndex >= length) {
+      return queue;
+    }
+
+    const withoutStart = queue.filter(idx => idx !== startIndex);
+    return [startIndex, ...withoutStart];
+  }, []);
+
+  const playCard = useCallback((index, mode = 'single') => {
     if (index < 0 || index >= playableCards.length) return;
 
     const card = playableCards[index];
     setCurrentIndex(index);
     setCurrentSource(card.audio_url);
-    setIsPlayingAll(continueSequence);
+    setPlayMode(mode);
+
+    if (mode !== 'shuffle') {
+      setShuffleQueue([]);
+      setShufflePosition(-1);
+    }
   }, [playableCards]);
 
   const handlePlayAll = () => {
     if (!playableCards.length) return;
     const hasCurrentSelection = Boolean(currentSource) && currentIndex >= 0 && currentIndex < playableCards.length;
     const startIndex = hasCurrentSelection ? currentIndex : 0;
-    playCard(startIndex, true);
+    playCard(startIndex, 'sequential');
+  };
+
+  const handlePlayShuffle = () => {
+    if (!playableCards.length) return;
+    const hasCurrentSelection = Boolean(currentSource) && currentIndex >= 0 && currentIndex < playableCards.length;
+    const startIndex = hasCurrentSelection ? currentIndex : Math.floor(Math.random() * playableCards.length);
+    const queue = buildShuffleQueue(playableCards.length, startIndex);
+    setShuffleQueue(queue);
+    setShufflePosition(0);
+    playCard(queue[0], 'shuffle');
   };
 
   const handlePause = () => {
-    setIsPlayingAll(false);
+    setPlayMode('single');
     if (audioRef.current) {
       audioRef.current.pause();
     }
   };
 
   const handleTrackEnd = () => {
-    if (!isPlayingAll) return;
-
-    const nextIndex = currentIndex + 1;
-    if (nextIndex >= playableCards.length) {
-      setIsPlayingAll(false);
+    if (playMode === 'sequential') {
+      const nextIndex = currentIndex + 1;
+      if (nextIndex >= playableCards.length) {
+        setPlayMode('single');
+        return;
+      }
+      playCard(nextIndex, 'sequential');
       return;
     }
 
-    playCard(nextIndex, true);
+    if (playMode === 'shuffle') {
+      const nextPosition = shufflePosition + 1;
+      if (nextPosition < 0 || nextPosition >= shuffleQueue.length) {
+        setPlayMode('single');
+        return;
+      }
+      setShufflePosition(nextPosition);
+      playCard(shuffleQueue[nextPosition], 'shuffle');
+    }
   };
 
   return (
@@ -647,7 +689,10 @@ function AudioView({ cards, isLoading, error, onBack, onReload }) {
 
         <div className="audio-actions">
           <button className="btn-primary" onClick={handlePlayAll} disabled={!playableCards.length}>
-            ▶ Слушать все подряд
+            {playMode === 'sequential' ? '▶ Идёт подряд' : '▶ Слушать все подряд'}
+          </button>
+          <button className="btn-primary" onClick={handlePlayShuffle} disabled={!playableCards.length}>
+            {playMode === 'shuffle' ? '🔀 Идёт вразнобой' : '🔀 Слушать вразнобой'}
           </button>
           <button className="btn-secondary" onClick={handlePause}>
             ⏸ Пауза
@@ -700,7 +745,7 @@ function AudioView({ cards, isLoading, error, onBack, onReload }) {
                 </div>
                 <button
                   className="audio-play-btn"
-                  onClick={() => playCard(index, false)}
+                  onClick={() => playCard(index, 'single')}
                 >
                   {activeCardId === card.id ? '🔊 Сейчас' : '▶ Слушать'}
                 </button>
