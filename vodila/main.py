@@ -1,8 +1,9 @@
 """FastAPI backend for flashcard learning app."""
 
+import hashlib
+import json
 import os
 import random
-import hashlib
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -144,11 +145,16 @@ def verify_telegram_data(init_data: dict) -> bool:
     if not received_hash:
         return False
     
-    # Extract data except hash
-    data_check_string = "&".join(
-        f"{k}={v}" for k, v in sorted(init_data.items()) 
-        if k != "hash" and v
-    )
+    # Extract data except hash, format as key=value sorted by key
+    data_pairs = []
+    for k, v in sorted(init_data.items()):
+        if k != "hash" and v is not None:
+            # Convert dict values to JSON string
+            if isinstance(v, dict):
+                v = json.dumps(v, separators=(',', ':'), sort_keys=True)
+            data_pairs.append(f"{k}={v}")
+    
+    data_check_string = "\n".join(data_pairs)
     
     secret_key = hashlib.sha256(token.encode()).digest()
     calculated_hash = hashlib.sha256(
@@ -157,7 +163,7 @@ def verify_telegram_data(init_data: dict) -> bool:
     
     # For debugging - log what we're checking
     print(f"Telegram auth check: token={token[:10]}..., hash={received_hash[:10]}...")
-    print(f"Data string: {data_check_string[:50]}...")
+    print(f"Data string (first 100): {data_check_string[:100]}...")
     print(f"Calculated hash: {calculated_hash[:20]}...")
     print(f"Match: {calculated_hash == received_hash}")
     
