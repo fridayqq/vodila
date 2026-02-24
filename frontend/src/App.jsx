@@ -65,8 +65,17 @@ function App() {
   };
 
   const handleLogin = () => {
+    console.log('Login clicked', {
+      hasTelegram: !!TelegramWebApp,
+      hasInitData: !!TelegramWebApp?.initData,
+      hasUser: !!TelegramWebApp?.initDataUnsafe?.user
+    });
+    
     if (TelegramWebApp?.initData && TelegramWebApp?.initDataUnsafe?.user) {
       authenticate(TelegramWebApp.initData, TelegramWebApp.initDataUnsafe.user);
+    } else {
+      console.warn('Telegram auth data not available');
+      alert('Откройте приложение в Telegram для входа');
     }
   };
 
@@ -77,7 +86,8 @@ function App() {
   };
 
   const getAuthHeaders = () => {
-    const tgUser = TelegramWebApp?.initDataUnsafe?.user;
+    // Use user from state (works even after page refresh in Telegram)
+    const tgUser = user?.telegram_id ? { id: user.telegram_id, username: user.username } : (TelegramWebApp?.initDataUnsafe?.user);
     if (!tgUser) return {};
     return { 'X-Telegram-User': JSON.stringify(tgUser) };
   };
@@ -152,16 +162,21 @@ function App() {
   };
 
   const updateCardProgress = async (ruleId, status) => {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    };
+    console.log('Updating progress:', { ruleId, status, headers });
+    
     try {
-      await fetch(`${API_BASE}/progress`, {
+      const res = await fetch(`${API_BASE}/progress`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
+        headers,
         body: JSON.stringify({ rule_id: ruleId, status }),
       });
       
+      console.log('Progress update response:', res.status, await res.text());
+
       if (!isExamMode) {
         fetchProgress();
       }
