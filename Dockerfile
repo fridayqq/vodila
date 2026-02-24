@@ -21,11 +21,11 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Copy backend files
-COPY vodila/pyproject.toml vodila/uv.lock ./
-COPY vodila/ ./vodila/
+COPY vodila/pyproject.toml ./
+RUN uv sync --no-dev
 
-# Install dependencies
-RUN uv sync --frozen --no-dev
+# Copy backend source code
+COPY vodila/*.py ./vodila/
 
 # Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist/ ./vodila/static/
