@@ -47,13 +47,18 @@ function App() {
   }, []);
 
   const authenticate = async (initData, tgUser) => {
+    console.log('Starting auth...', { initData: initData ? 'present' : 'missing', tgUser });
+    
     try {
       const params = new URLSearchParams(initData);
       const userParam = params.get('user');
       const hash = params.get('hash');
 
+      console.log('Auth params:', { userParam: userParam ? 'present' : 'missing', hash: hash ? 'present' : 'missing' });
+
       if (!userParam || !hash) {
         // No auth data - use anonymous mode
+        console.warn('No Telegram auth data, using anonymous mode');
         setIsAuthenticated(true);
         setUser({ id: 'anonymous', username: 'Guest' });
         return;
@@ -65,13 +70,17 @@ function App() {
         body: JSON.stringify({ user: tgUser, hash }),
       });
 
+      console.log('Auth response status:', res.status);
+
       if (res.ok) {
         const data = await res.json();
+        console.log('Auth success:', data);
         setUser(data);
         setIsAuthenticated(true);
       } else {
         // Auth failed - use anonymous mode
-        console.warn('Telegram auth failed, using anonymous mode');
+        const errorText = await res.text();
+        console.warn('Telegram auth failed, using anonymous mode:', errorText);
         setIsAuthenticated(true);
         setUser({ id: 'anonymous', username: 'Guest' });
       }
