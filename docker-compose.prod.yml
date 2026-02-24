@@ -1,0 +1,37 @@
+# Production Docker Compose configuration
+services:
+  app:
+    image: vodila-app:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - app_data:/app/data
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - DATABASE_PATH=/app/data/rules.db
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  app_data:
+    driver: local
+
+networks:
+  default:
+    driver: bridge
