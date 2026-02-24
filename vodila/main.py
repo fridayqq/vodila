@@ -15,13 +15,19 @@ from sqlalchemy import create_engine, select, func
 from sqlalchemy.orm import Session, declarative_base, Mapped, mapped_column
 
 # Database setup
-# On Render, use /tmp for ephemeral storage
-if os.getenv("RENDER"):
-    DB_PATH = Path("/tmp/rules.db")
-else:
-    DB_PATH = Path(os.getenv("DATABASE_PATH", Path(__file__).parent / "rules.db"))
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
+if DATABASE_URL:
+    # Use PostgreSQL
+    engine = create_engine(DATABASE_URL)
+elif os.getenv("RENDER"):
+    # On Render free tier, use /tmp for ephemeral storage
+    DB_PATH = Path("/tmp/rules.db")
+    engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
+else:
+    # Local development with SQLite
+    DB_PATH = Path(os.getenv("DATABASE_PATH", Path(__file__).parent / "rules.db"))
+    engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
 Base = declarative_base()
 
 
