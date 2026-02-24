@@ -5,7 +5,6 @@ __pycache__/
 *.so
 .Python
 .venv/
-uv.lock
 
 # Database
 *.db
