@@ -136,7 +136,11 @@ def get_db() -> Session:
 
 
 def verify_telegram_data(init_data: dict) -> bool:
-    """Verify Telegram WebApp init data."""
+    """Verify Telegram WebApp init data.
+    
+    Telegram uses HMAC-SHA256 to sign the init_data.
+    The data_check_string is formed by joining sorted key=value pairs with '\n'.
+    """
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
         return True  # Skip verification if no token
@@ -146,26 +150,38 @@ def verify_telegram_data(init_data: dict) -> bool:
         return False
     
     # Extract data except hash, format as key=value sorted by key
+    # User object should be serialized as JSON without spaces
     data_pairs = []
-    for k, v in sorted(init_data.items()):
-        if k != "hash" and v is not None:
-            # Convert dict values to JSON string
-            if isinstance(v, dict):
-                v = json.dumps(v, separators=(',', ':'), sort_keys=True)
-            data_pairs.append(f"{k}={v}")
+    for k in sorted(init_data.keys()):
+        if k == "hash":
+            continue
+        v = init_data[k]
+        if v is None:
+            continue
+        # Convert dict values to compact JSON string
+        if isinstance(v, dict):
+            v = json.dumps(v, separators=(',', ':'), sort_keys=True)
+        data_pairs.append(f"{k}={v}")
     
+    # Join with newline as per Telegram spec
     data_check_string = "\n".join(data_pairs)
     
+    # Create secret key from bot token
     secret_key = hashlib.sha256(token.encode()).digest()
+    
+    # Calculate hash
     calculated_hash = hashlib.sha256(
         data_check_string.encode(), usedforsecurity=False
     ).hexdigest()
     
-    # For debugging - log what we're checking
-    print(f"Telegram auth check: token={token[:10]}..., hash={received_hash[:10]}...")
-    print(f"Data string (first 100): {data_check_string[:100]}...")
-    print(f"Calculated hash: {calculated_hash[:20]}...")
-    print(f"Match: {calculated_hash == received_hash}")
+    # For debugging
+    print(f"Telegram auth check:")
+    print(f"  Token: {token[:10]}...")
+    print(f"  Received hash: {received_hash}")
+    print(f"  Data pairs: {data_pairs}")
+    print(f"  Data string: {repr(data_check_string)}")
+    print(f"  Calculated hash: {calculated_hash}")
+    print(f"  Match: {calculated_hash == received_hash}")
     
     return calculated_hash == received_hash
 
